@@ -3240,6 +3240,37 @@ describe("IssueDetail", () => {
     },
   );
 
+  it("does not poll linked runs for an in-progress issue with no live run", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      mockIssuesApi.get.mockResolvedValue(
+        createIssue({ status: "in_progress" }),
+      );
+
+      await act(async () => {
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <IssueDetail />
+          </QueryClientProvider>,
+        );
+      });
+      await flushReact();
+      await flushReact();
+
+      const initialCalls = mockActivityApi.runsForIssue.mock.calls.length;
+      expect(initialCalls).toBeGreaterThan(0);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(6000);
+      });
+      await flushReact();
+
+      expect(mockActivityApi.runsForIssue).toHaveBeenCalledTimes(initialCalls);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("recovers historical follow-up provenance from overlapping run chronology", async () => {
     mockIssuesApi.get.mockResolvedValue(createIssue({ status: "done" }));
     mockIssuesApi.listComments.mockResolvedValue([
