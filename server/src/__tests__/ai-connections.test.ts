@@ -744,9 +744,26 @@ describe("managed AI connections", () => {
     expect(omitted.status, JSON.stringify(omitted.body)).toBe(200);
     expect((await stored()).aiConnection).toEqual(bound);
 
-    const unbound = await request(app).patch(`/api/agents/${id}`).send({ runtimeConfig: { aiConnection: null, heartbeat: { enabled: true } } });
+    const unbound = await request(app).patch(`/api/agents/${id}`).send({ runtimeConfig: { aiConnection: null } });
     expect(unbound.status, JSON.stringify(unbound.body)).toBe(200);
     expect(await stored()).toEqual({ heartbeat: { enabled: true } });
+  });
+
+  it("switches a bound agent to an incompatible adapter when the request unbinds its connection", async () => {
+    const { agentRoutes } = await import("../routes/agents.js");
+    const id = randomUUID();
+    await db.insert(agents).values({ id, companyId, name: "Codex to Claude", adapterType: "codex_local", runtimeConfig: { aiConnection: { provider: "openai", method: "subscription", mode: "responsible_user" }, heartbeat: { enabled: true } } });
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => { req.actor = { type: "board", source: "local_implicit", userId: "alice", companyIds: [companyId] }; next(); });
+    app.use("/api", agentRoutes(db));
+    app.use((error: { status?: number; message: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => { res.status(error.status ?? 500).json({ error: error.message }); });
+
+    const switched = await request(app).patch(`/api/agents/${id}`).send({ adapterType: "claude_local", adapterConfig: {}, runtimeConfig: { aiConnection: null } });
+    expect(switched.status, JSON.stringify(switched.body)).toBe(200);
+    const [saved] = await db.select().from(agents).where(eq(agents.id, id));
+    expect(saved.adapterType).toBe("claude_local");
+    expect(saved.runtimeConfig).toEqual({ heartbeat: { enabled: true } });
   });
 
   it("creates and hires agents with an authorized restricted shared connection", async () => {

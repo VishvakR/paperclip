@@ -5360,8 +5360,10 @@ export function agentRoutes(
       });
     }
     const unbindingAiConnection = requestedRuntimeConfig?.aiConnection === null;
-    if (requestedRuntimeConfig?.aiConnection === null) delete requestedRuntimeConfig.aiConnection;
-    else if (existing.runtimeConfig.aiConnection && requestedRuntimeConfig && !requestedRuntimeConfig.aiConnection) requestedRuntimeConfig.aiConnection = existing.runtimeConfig.aiConnection;
+    if (requestedRuntimeConfig?.aiConnection === null) {
+      if (Object.keys(requestedRuntimeConfig).length === 1) requestedRuntimeConfig = { ...existing.runtimeConfig };
+      delete requestedRuntimeConfig.aiConnection;
+    } else if (existing.runtimeConfig.aiConnection && requestedRuntimeConfig && !requestedRuntimeConfig.aiConnection) requestedRuntimeConfig.aiConnection = existing.runtimeConfig.aiConnection;
     const nextAiBinding = unbindingAiConnection ? undefined : aiConnectionBindingSchema.safeParse(requestedRuntimeConfig?.aiConnection ?? existing.runtimeConfig.aiConnection).data;
     if (nextAiBinding) {
       await assertCanUpdateAgent(req, existing);
